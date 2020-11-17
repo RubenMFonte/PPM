@@ -44,14 +44,31 @@ object IngredientsManager {
         showIngredients(category);
         val ingredientName = askForStringInput("Choose an ingredient: ");
         val foundIngredient: Ingredient = dbIngredients.find(ingredient => ingredient._name == ingredientName).get: Ingredient;
-        val newIngredient: Ingredient = new Ingredient(foundIngredient._name, foundIngredient._category);
-        newIngredient :: myIngredients;
+        myIngredients.::(foundIngredient);
     }
 
     def showMyIngredients(myIngredients: List[Ingredient]) =
-        myIngredients.foreach(i => println(i._name));
+    {
+        def printIngredients(myIngredients: List[Ingredient], i: Int): String =
+            myIngredients match {
+                case Nil => "";
+                case ing :: ingredients => i + ") " + ing._name + "\n" + printIngredients(ingredients, i+1)
+            }
 
-    def removeIngredient() = Nil
+        println(printIngredients(myIngredients, 1));
+    };
+
+    def removeIngredient(myIngredients: List[Ingredient]): List[Ingredient] = {
+        def removeAtIndex(myIngredients: List[Ingredient], index: Int, acc: Int): List[Ingredient] =
+            myIngredients match {
+                case Nil => Nil;
+                case ing :: ingredients => if(acc == index) removeAtIndex(ingredients, index, acc + 1) else ing :: removeAtIndex(ingredients, index, acc + 1);
+            }
+
+        showMyIngredients(myIngredients);
+        val ingredientToRemove = askForStringInput("Enter ingredient number: ").toInt;
+        removeAtIndex(myIngredients, ingredientToRemove, 1);
+    }
 
     def mainLoop(myIngredients: List[Ingredient]): Any = {
         val i = showMenu(List("Add Ingredients", "Remove Ingredients", "Show My Ingredients"));
@@ -59,7 +76,7 @@ object IngredientsManager {
         i match {
             case 0 => sys.exit();
             case 1 => mainLoop(addIngredient(myIngredients));
-            case 2 => removeIngredient();
+            case 2 => mainLoop(removeIngredient(myIngredients));
             case 3 => {
                 showMyIngredients(myIngredients); mainLoop(myIngredients);
             }
@@ -68,6 +85,6 @@ object IngredientsManager {
     }
 
     def main(args: Array[String]): Unit = {
-        mainLoop(List());
+        mainLoop(List[Ingredient]());
     }
 }
