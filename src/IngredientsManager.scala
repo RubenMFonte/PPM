@@ -1,24 +1,24 @@
-import scala.io.StdIn.readLine
 import MenuManager._
 
-class Ingredient(name: String, category: String){
+class Ingredient(name: String, category: String, calories: Int){
     val _name: String = name
     val _category: String = category
+    val _calories: Int = calories
     // val _diets: List[String] = d
 }
 
 object IngredientsManager {
 
     def dbIngredients: List[Ingredient] = List(
-        new Ingredient("Beef", "Meats"),
-        new Ingredient("Chicken Breast", "Meats"),
-        new Ingredient("Meatballs", "Meats"),
-        new Ingredient("Carrots", "Vegetables"),
-        new Ingredient("Tomatoes", "Vegetables"),
-        new Ingredient("Potatoes", "Vegetables"),
-        new Ingredient("Salt", "Spices"),
-        new Ingredient("Pepper", "Spices"),
-        new Ingredient("Sugar", "Spices"),
+        new Ingredient("Beef", "Meats", 100),
+        new Ingredient("Chicken Breast", "Meats", 150),
+        new Ingredient("Meatballs", "Meats", 220),
+        new Ingredient("Carrots", "Vegetables", 30),
+        new Ingredient("Tomatoes", "Vegetables", 20),
+        new Ingredient("Potatoes", "Vegetables", 10),
+        new Ingredient("Salt", "Spices", 45),
+        new Ingredient("Pepper", "Spices", 1),
+        new Ingredient("Sugar", "Spices", 20)
     )
 
     def getCategories(ingredients: List[Ingredient]): List[String] = {
