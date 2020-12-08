@@ -1,25 +1,12 @@
 import scala.Console.println
 import scala.util.Random
 import MenuManager._
+import scala.annotation.tailrec
 
 
-class Recipe ( recipeNameArg: String, ingredientsListArg: List[Ingredient], dietTypeListArg: List[String], difficultyLevelArg: String, commentsListArg: List[String], ratingArg: Int ){
-  val recipeName: String = recipeNameArg
-  val ingredientsList: List[Ingredient] = ingredientsListArg
-  val dietTypeList: List[String] = dietTypeListArg
-  val difficultyLevel: String = difficultyLevelArg
-  val commentsList: List[String] = commentsListArg
-  val rating: Int = ratingArg
-}
+case class Recipe(recipeName: String, ingredientsList: List[Ingredient], dietTypeList: List[String], difficultyLevel: String, commentsList: List[String], rating: Int) extends Serializable;
 
-class MealMenu ( idMealMenuArg: Int, recipesListArg: List[Recipe], numberOfDaysArg: Int, numberOfMealsPerDayArg: Int ){
-  val idMealMenu: Int = idMealMenuArg
-  val recipesList: List[Recipe] = recipesListArg
-  val numberOfDays: Int = numberOfDaysArg
-  val numberOfMealsPerDay: Int = numberOfMealsPerDayArg
-}
-
-object RecipesManager {
+object Recipe {
 
   def dbRecipes: List[Recipe] = List(
     new Recipe("Bacalhau à Brás", List(new Ingredient("Bacalhau", "Fish", 100), new Ingredient("Batata", "Vegetables", 20), new Ingredient("Cebola", "Vegetables", 14)), List("Pescetarianismo","Carnivora"), "easy",List(""),0),
@@ -28,112 +15,123 @@ object RecipesManager {
     new Recipe("Arroz de Frango", List(new Ingredient("Arroz", "Cereal", 80), new Ingredient("Frango", "Meats", 150), new Ingredient("Cebola", "Vegetables",12)), List("Vegan"), "easy",List(""),0),
     new Recipe("Massa de Frango", List(new Ingredient("Massa", "Cereal", 80), new Ingredient("Frango", "Meats", 150), new Ingredient("Cebola", "Vegetables",12)), List("Vegan"), "easy",List(""),0),
     new Recipe("Sopa de Frango", List(new Ingredient("Agua", "Cereal", 80), new Ingredient("Frango", "Meats", 150), new Ingredient("Cebola", "Vegetables",12)), List("Vegan"), "easy",List(""),0),
-
   )
 
-  def getRecipeName(recipeList: List[Recipe]): List[String] = {
-    recipeList match {
-      case Nil => Nil;
-      case x :: ls => x.recipeName :: getRecipeName(ls);
+  def compareFilterWithListOnRecipe[T](filter: T, listOnRecipe: List[T], compareElements: (T,T) => Boolean): Boolean = {
+    listOnRecipe match {
+      case Nil => false;
+      case x :: xs => if (compareElements(filter, x)) true
+      else compareFilterWithListOnRecipe(filter, xs, compareElements);
     }
   }
 
+  def recipeFilterSingleElement[T](recipeList: List[Recipe], getListOnRecipe: Recipe => List[T], compareElements: (T,T) => Boolean, filter: T)(reversed: Boolean) =
+    recipeFilter(recipeList, getListOnRecipe, compareElements, List(filter))(reversed);
+
+  // General function to filter a list of some element on the recipe with a list of filters
+  def recipeFilter[T](recipeList: List[Recipe], getListOnRecipe: Recipe => List[T], compareElements: (T,T) => Boolean, filterList: List[T])(reversed: Boolean): List[Recipe] = {
+
+    // Check if the list of the recipe contains the list of filters
+    def compareLists(listOnRecipe: List[T], filterList: List[T], compareElements: (T,T) => Boolean, reversed: Boolean): Boolean = {
+      def evaluateComparison(comparison: Boolean, reversed: Boolean): Boolean = {
+        if(reversed) comparison else !comparison;
+      }
+
+      filterList match {
+        case Nil => true;
+        case f :: fl => if(evaluateComparison(compareFilterWithListOnRecipe(f, listOnRecipe, compareElements), reversed)) false
+        else compareLists(listOnRecipe, fl, compareElements, reversed);
+      }
+    }
+
+    recipeList match {
+      case Nil => Nil;
+      case r :: rl => if( compareLists( getListOnRecipe(r), filterList, compareElements, reversed) ) r :: recipeFilter(rl, getListOnRecipe, compareElements, filterList)(reversed)
+                      else recipeFilter(rl, getListOnRecipe, compareElements, filterList)(reversed);
+    }
+  }
+
+  def recipeFilterNormal[T](recipeList: List[Recipe], getListOnRecipe: Recipe => List[T], compareElements: (T,T) => Boolean, filterList: List[T]) =
+    recipeFilter(recipeList: List[Recipe], getListOnRecipe: Recipe => List[T], compareElements: (T,T) => Boolean, filterList: List[T])(false);
+
+  def recipeFilterReversed[T](recipeList: List[Recipe], getListOnRecipe: Recipe => List[T], compareElements: (T,T) => Boolean, filterList: List[T]) =
+    recipeFilter(recipeList: List[Recipe], getListOnRecipe: Recipe => List[T], compareElements: (T,T) => Boolean, filterList: List[T])(true);
+
+  def compareStrings(s1: String, s2: String): Boolean = s1.equals(s2);
+
+  def filterRecipesByDiets(recipeList: List[Recipe], dietList: List[String]): List[Recipe] = {
+    def getRecipeDietList(recipe: Recipe): List[String] = recipe.dietTypeList;
+    recipeFilterNormal(recipeList, getRecipeDietList, compareStrings, dietList);
+  }
+
+  def getRecipeIngredientsList(recipe: Recipe): List[Ingredient] = recipe.ingredientsList;
+  def compareIngredients(i1: Ingredient, i2: Ingredient): Boolean = i1._name.equals(i2._name);
+
+  def filterRecipesByIngredients(recipeList: List[Recipe], ingredientsList: List[Ingredient]): List[Recipe] = {
+    recipeFilterNormal(recipeList, getRecipeIngredientsList, compareIngredients, ingredientsList);
+  }
+
+  def filterRecipesByProhibitedIngredients(recipeList: List[Recipe], prohibitedIngredientList: List[Ingredient]): List[Recipe] = {
+    recipeFilterReversed(recipeList, getRecipeIngredientsList, compareIngredients, prohibitedIngredientList);
+  }
+
+  def filterRecipesByDifficultyLevel(recipeList: List[Recipe], difficultyLevel: String): List[Recipe] = {
+    def getRecipeDifficultyLevel(recipe: Recipe): List[String] = List(recipe.difficultyLevel);
+    recipeFilterSingleElement(recipeList, getRecipeDifficultyLevel, compareStrings, difficultyLevel)(false);
+  }
+
+  def getRecipesNamesAsList(recipes: List[Recipe]): List[String] = {
+    def getRecipeName(recipe: Recipe) = recipe.recipeName;
+    MenuManager.getNameList(recipes, getRecipeName);
+  }
+
+  def getRecipeCalories(recipe: Recipe): Int = {
+    Ingredient.getCaloriesFromIngredientsList(recipe.ingredientsList);
+  }
+
+  def filterRecipesByCalories(recipeList: List[Recipe], minCalories: Int, maxCalories: Int): List[Recipe] = {
+    def getRecipeCaloricRange(recipe: Recipe): List[(Int, Int)] = {
+      val calories = getRecipeCalories(recipe);
+      List((calories,calories));
+    }
+    def compareCalories(rangeOfCalories: (Int,Int), recipeCalories: (Int, Int)): Boolean = recipeCalories._1 > rangeOfCalories._1 && recipeCalories._1 < rangeOfCalories._2;
+    recipeFilterSingleElement(recipeList, getRecipeCaloricRange, compareCalories, (minCalories, maxCalories))(false);
+  }
+
+  def getIngredientsFromRecipeList(recipeList: List[Recipe]): List[Ingredient] = {
+    recipeList match {
+      case Nil => Nil
+      case x :: xs => x.ingredientsList ++ getIngredientsFromRecipeList(xs)
+    }
+  }
+
+  def suggestRecipes(recipesList: List[Recipe]): List[Recipe] = {
+    Random.shuffle(recipesList).take(5);
+  }
+
+  def getCaloriesFromRecipeList(recipeList: List[Recipe]): Int = {
+    recipeList match {
+      case Nil => 0
+      case x :: xs => getRecipeCalories(x) + getCaloriesFromRecipeList(xs)
+    }
+  }
+
+  def showMyRecipes(myRecipes: List[Recipe]) = {
+    MenuManager.showMenu(getRecipesNamesAsList(myRecipes));
+  };
+
+
+}
+/*
+object RecipesManager {
+
+  // QUAL A RAZAO PARA ESTA FUNCAO?
   def getRecipeIngredients(recipe: Recipe): List[Ingredient] = {
     recipe.ingredientsList
   }
 
-
-
-  //--------------- Filter Recipes List from diet list ----------------//
-
-  //Verify if a list of diets from one recipe contains a certain diet
-  def dietListContainsDiet(dietTypeList: List[String], dietType: String): Boolean = {
-    dietTypeList match {
-      case Nil => false
-      case x :: xs => if(x.equals(dietType)) {
-        true
-      }
-      else dietListContainsDiet(xs, dietType)
-    }
-  }
-
-  //Verify if one recipe contains the dietTypeList
-  def recipeContainDiets(recipe: Recipe, dietTypeListArg: List[String] ): Boolean = {
-    dietTypeListArg match {
-      case Nil => false
-      case x :: xs => if(dietListContainsDiet(recipe.dietTypeList,x)) true
-      else recipeContainDiets(recipe, xs)
-    }
-  }
-
-  def getRecipesByDiet(recipeList: List[Recipe], dietList: List[String]): List[Recipe] = {
-    recipeList match {
-      case Nil => recipeList
-      case x :: xs => if (recipeContainDiets(x, dietList)) x :: getRecipesByDiet(xs, dietList)
-      else getRecipesByDiet(xs, dietList)
-    }
-  }
-
-
-  //--------------- Filter Recipes List from ingredient list ----------------//
-
-  //Verify if a list of diets from one recipe contains a certain diet
-  def ingredientListContainsIngredient(ingredientsList: List[Ingredient], ingredient: Ingredient): Boolean = {
-    ingredientsList match {
-      case Nil => false
-      case x :: xs => if(x._name.equals(ingredient._name)) true
-      else ingredientListContainsIngredient(xs, ingredient)
-    }
-  }
-
-  //Verify if one recipe contains the ingredientList
-  def recipeContainIngredients(recipe: Recipe, ingredientListArg: List[Ingredient] ): Boolean = {
-    ingredientListArg match {
-      case Nil => false
-      case x :: xs => if(ingredientListContainsIngredient(recipe.ingredientsList,x)) true
-      else recipeContainIngredients(recipe, xs)
-    }
-  }
-
-  def getRecipesByIngredient(recipeList: List[Recipe], ingredientList: List[Ingredient]): List[Recipe] = {
-    recipeList match {
-      case Nil => recipeList
-      case x :: xs => if (recipeContainIngredients(x, ingredientList)) x :: getRecipesByIngredient(xs, ingredientList)
-      else getRecipesByIngredient(xs, ingredientList)
-    }
-  }
-
-  //--------------- Filter Recipes List from prohibited ingredient list ----------------//
-
-  def getRecipesByProhibitedIngredient(recipeList: List[Recipe], prohibitedIngredientList: List[Ingredient]): List[Recipe] = {
-    recipeList match {
-      case Nil => recipeList
-      case x :: xs => if (!recipeContainIngredients(x, prohibitedIngredientList)) x :: getRecipesByProhibitedIngredient(xs, prohibitedIngredientList)
-      else getRecipesByProhibitedIngredient(xs, prohibitedIngredientList)
-    }
-  }
-
-  //--------------- Filter Recipes List from Level of Difficulty ----------------//
-
-  def getRecipesByDifficultyLevel(recipeList: List[Recipe], difficultyLevel: String): List[Recipe] = {
-    recipeList match {
-      case Nil => recipeList
-      case x :: xs => if (x.difficultyLevel.equals(difficultyLevel)) x :: getRecipesByDifficultyLevel(xs, difficultyLevel)
-      else getRecipesByDifficultyLevel(xs, difficultyLevel)
-    }
-  }
-
-  //--------------- Filter Recipes List with min and max Calories ----------------//
-
-  def getRecipesByCalories(recipeList: List[Recipe], minCalories: Int, maxCalories: Int): List[Recipe] = {
-    recipeList match {
-      case Nil => recipeList
-      case x :: xs => if ( minCalories <= getCaloriesByRecipe(x) && getCaloriesByRecipe(x) <= maxCalories )   x :: getRecipesByCalories(xs, minCalories, maxCalories)
-      else getRecipesByCalories(xs, minCalories, maxCalories)
-    }
-  }
-
   //--------------- Receive list of Ingredients from the choosen Recipes ----------------//
+  // QUAL A RAZAO PARA ESTAS FUNCOES?
 
   def getIngredientsFromRecipeList(recipeList: List[Recipe]): List[Ingredient] = {
     recipeList match {
@@ -156,74 +154,10 @@ object RecipesManager {
     }
   }
 
-                    //--------------- Suggest week menu ----------------//
-
-  def suggestMenu(idMealMenuArg: Int, recipesListArg: List[Recipe], numberOfDaysArg: Int, numberOfMealsPerDayArg: Int): MealMenu = {
-    //Random.shuffle(recipesListArg).take(numberOfDaysArg * numberOfMealsPerDayArg)
-    new MealMenu(idMealMenuArg, Random.shuffle(recipesListArg).take(numberOfDaysArg * numberOfMealsPerDayArg), numberOfDaysArg, numberOfMealsPerDayArg )
-  }
-
-                    //--------------- Suggest recipes ----------------//
-  def suggestRecipes(recipesListArg: List[Recipe]): List[Recipe] = {
-    Random.shuffle(recipesListArg).take(5)
-  }
-                    //--------------- Access the Recipe ----------------//
-  def accessRecipe(recipe: Recipe): Unit = {
-    println("Recipe: " + recipe.recipeName)
-    recipe.ingredientsList.foreach(i => println(i._name))
-    recipe.dietTypeList.foreach(i => println(i))
-    println("Difficulty: " + recipe.difficultyLevel)
-    println("Calories: " + getCaloriesByRecipe(recipe))
-  }
-                  //--------------- Get Shopping List from MealMenu ----------------//
   def getShoppingList(mealMenu: MealMenu): Unit = {
     println(removeDuplicates_getIngredientsFromRecipeList(getNameList_IngredientsFromRecipeList((getIngredientsFromRecipeList(mealMenu.recipesList)))))
-  }
-
-                  //--------------- Get Calories from Recipe ----------------//
-  def getCaloriesFromIngredientsList(ingredientsList: List[Ingredient]): Int = {
-    ingredientsList match {
-      case Nil => 0
-      case x :: xs => x._calories + getCaloriesFromIngredientsList(xs)
-    }
-  }
-
-  def getCaloriesByRecipe(recipe: Recipe): Int = {
-    getCaloriesFromIngredientsList(recipe.ingredientsList)
-  }
-
-                 //--------------- Get Calories from MealMenu ----------------//
-  def getCaloriesFromRecipeList(recipeList: List[Recipe]): Int = {
-    recipeList match {
-      case Nil => 0
-      case x :: xs => getCaloriesByRecipe(x) + getCaloriesFromRecipeList(xs)
-    }
-  }
-
-  def getCaloriesByMealMenu(mealMenu: MealMenu): Int = {
-    getCaloriesFromRecipeList(mealMenu.recipesList)
-  }
 
 
-  //--------------- Main ----------------//
-
-  def showListStrings(myStringsList: List[String]) =
-    myStringsList.foreach(i => println(i));
-
- /* def showMyRecipes(myRecipes: List[Recipe]) =
-    myRecipes.foreach(i => println(i.recipeName));
-  */
-
-  def showMyRecipes(myRecipes: List[Recipe]) =
-  {
-    def printRecipes(myRecipes: List[Recipe], i: Int): String =
-      myRecipes match {
-        case Nil => "";
-        case x :: xs => i + ") " + x.recipeName + "\n" + printRecipes(xs, i+1)
-      }
-
-    println(printRecipes(myRecipes, 1));
-  };
 
  /* def main(args: Array[String]): Unit = {
     //mainLoopRecipe(List());
@@ -242,7 +176,7 @@ object RecipesManager {
     //println(getCaloriesByMealMenu(new MealMenu(123, List(new Recipe("Bacalhau à Brás", List(new Ingredient("Bacalhau", "Fish", 100), new Ingredient("Batata", "Vegetables", 20), new Ingredient("Cebola", "Vegetables", 14)), List("Pescetarianismo","Carnivora"), "easy")), 1, 1)))
     //showMyRecipes(getRecipesByCalories(dbRecipes, 0, 800))
     println("Fim")
-  }*/
+  }
 
   def subMainLoop(myRecipes: List[Recipe]): Any = {
     val i = showMenu(getRecipeName(myRecipes));
@@ -260,19 +194,20 @@ object RecipesManager {
 
   def mainLoop(myRecipes: List[Recipe]): Any = {
     val i = showMenu(List("Sugestão de Receitas", "Remove Ingredients", "Show My Ingredients"));
+
     i match {
       case 0 => sys.exit();
       case 1 => subMainLoop(suggestRecipes(dbRecipes))
-  /*    case 2 => mainLoop(removeIngredient(myIngredients));
-      case 3 => {
-        showMyIngredients(myIngredients); mainLoop(myIngredients);
-     } */
+      /*    case 2 => mainLoop(removeIngredient(myIngredients));
+          case 3 => {
+            showMyIngredients(myIngredients); mainLoop(myIngredients);
+         } */
       case _ => println("Error: Please provide a valid input!");
     }
   }
 
   def main(args: Array[String]): Unit = {
     mainLoop(List[Recipe]());
-  }
+  }*/
 
-}
+}*/

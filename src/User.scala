@@ -1,97 +1,30 @@
-import MenuManager._
 
-import scala.annotation.tailrec
-import scala.io.Source
-import java.io._
-
-import scala.collection.mutable.ListBuffer
-
-case class User(username: String, password: String, name: String);
+case class User(username: String, password: String, name: String, favRecipes: List[String], myMenus: List[MealMenu], myIngredients: List[String]) extends Serializable;
 
 object User {
-  def dbRegisteredUsers: List[User] = List(
-    User("rubenfonte", "ppmapp", "Ruben"),
-    User("danielborges", "ppmapp", "Daniel"),
-    User("joaofernandes", "ppmapp", "Joao")
-  )
 
-  def loadUsers(file: String): List[User] = {
-    val bufferedSource = Source.fromFile(file);
-    var usersBuffer = new ListBuffer[User]();
+  def create(username: String, password: String, name: String): User = new User(username, password, name, List(), List(), List());
 
-    for (line <- bufferedSource.getLines){
-        val userData = line.split(";");
-        val username = userData(0);
-        val password = userData(1);
-        val name = userData(2);
-        usersBuffer += new User(username, password, name);
-    }
-
-    bufferedSource.close;
-    usersBuffer.toList;
-  }
-
-  def saveUsers(file: String, registeredUsers: List[User]): List[User] = {
-    def saveUsersToFile(printer: PrintWriter, users: List[User]) = {
-      users.foreach(user =>
-        printer.write(user.username + ";" + user.password + ";" + user.name + "\n"));
-    }
-    val pw = new PrintWriter(new File(file))
-
-    saveUsersToFile(pw, registeredUsers);
-
-    pw.close;
-
-    registeredUsers;
-  }
-
-  @tailrec
-  def login(users: List[User]): User = {
-    val username = askForStringInput("Username: ");
-    val password = askForStringInput("Password: ");
-    val foundUser = users.find(user => (user.username == username) && (user.password == password));
-
-    foundUser match {
-      case Some(user) => user;
-      case None => { println("Error: invalid credentials."); login(users); }
-    }
-
-  }
-
-  @tailrec
-  def createAccount(users: List[User]): List[User] = {
-    val username = askForStringInput("Username: ");
-    val userExists = users.exists(user => user.username == username);
-
-    if(userExists) {
-      println("Username exists!");
-      createAccount(users);
-    }
-    else {
-      val password = askForStringInput("Password: ");
-      val name = askForStringInput("Name: ");
-      val newUser = User(username,password,name);
-      newUser :: users;
-    }
-
-  }
-
-  def accountLoop(users: List[User]): User = {
-    val i = showMenu(List("Login", "Create Account"));
-
-    i match {
-      case 0 => sys.exit();
-      case 1 => login(users);
-      case 2 => accountLoop(saveUsers("users.txt", createAccount(users)));
-      case _ => { println("Error: Please provide a valid input!"); accountLoop(users); }
+  def loginUser(users: List[User], username: String, password: String): Option[String] = {
+    users match {
+      case Nil => None;
+      case user :: usersList => if((user.username == username) && (user.password == password)) { Some(user.username) }
+      else { loginUser(usersList, username, password) }
     }
   }
 
-  def main(args: Array[String]): Unit = {
-    val dbUsers = loadUsers("users.txt");
-
-    val user = accountLoop(dbUsers);
-    println(user.name);
+  def getUser(username: String, users: List[User]): Option[User] = {
+    users match {
+      case Nil => None;
+      case u :: ul => if(u.username == username) Option(u) else getUser(username, ul);
+    }
   }
 
+  def addIngredient(user: User): User = {
+    new User(user.username, user.password, user.name, user.favRecipes, user.myMenus, Ingredient.addIngredient(user.myIngredients));
+  }
+
+  def removeIngredient(user: User): User = {
+    new User(user.username, user.password, user.name, user.favRecipes, user.myMenus, Ingredient.removeIngredient(user.myIngredients));
+  }
 }

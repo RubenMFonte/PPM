@@ -1,13 +1,8 @@
 import MenuManager._
 
-class Ingredient(name: String, category: String, calories: Int){
-    val _name: String = name
-    val _category: String = category
-    val _calories: Int = calories
-    // val _diets: List[String] = d
-}
+case class Ingredient(_name: String, _category: String, _calories: Int) extends Serializable;
 
-object IngredientsManager {
+object Ingredient {
 
     def dbIngredients: List[Ingredient] = List(
         new Ingredient("Beef", "Meats", 100),
@@ -20,6 +15,20 @@ object IngredientsManager {
         new Ingredient("Pepper", "Spices", 1),
         new Ingredient("Sugar", "Spices", 20)
     )
+
+    def getIngredientName(ingredient: Ingredient): String = ingredient._name;
+
+    def getCaloriesFromIngredientsList(ingredientsList: List[Ingredient]): Int = {
+        ingredientsList match {
+            case Nil => 0
+            case x :: xs => x._calories + getCaloriesFromIngredientsList(xs)
+        }
+    }
+
+    def getIngredientsNamesAsList(ingredientsList: List[Ingredient]): List[String] = {
+        def getIngredientName(ing: Ingredient) = ing._name;
+        MenuManager.getNameList(ingredientsList, getIngredientName);
+    }
 
     def getCategories(ingredients: List[Ingredient]): List[String] = {
         ingredients match {
@@ -38,36 +47,39 @@ object IngredientsManager {
             if (i._category == category) println(i._name)
         });
 
-    def addIngredient(myIngredients: List[Ingredient]): List[Ingredient] = {
+    def addIngredient(myIngredients: List[String]): List[String] = {
         showCategories();
         val category = askForStringInput("Choose a category: ");
         showIngredients(category);
         val ingredientName = askForStringInput("Choose an ingredient: ");
         val foundIngredient: Ingredient = dbIngredients.find(ingredient => ingredient._name == ingredientName).get: Ingredient;
-        myIngredients.::(foundIngredient);
+        myIngredients.::(foundIngredient._name);
     }
 
-    def showMyIngredients(myIngredients: List[Ingredient]) =
-    {
-        def printIngredients(myIngredients: List[Ingredient], i: Int): String =
-            myIngredients match {
-                case Nil => "";
-                case ing :: ingredients => i + ") " + ing._name + "\n" + printIngredients(ingredients, i+1)
+    def getMyIngredients(myIngredients: List[String], dbIngredients: List[Ingredient]): List[Ingredient] = {
+        def getIngredientByName(name: String, dbIngredients: List[Ingredient]): Option[Ingredient] = {
+            dbIngredients match {
+                case Nil => None;
+                case i :: il => if(i._name == name) Some(i) else getIngredientByName(name, il);
             }
-
-        println(printIngredients(myIngredients, 1));
+        }
+        myIngredients match {
+            case Nil => Nil;
+            case mi :: mil => getIngredientByName(mi, dbIngredients) match {
+                case Some(ingredient) => ingredient :: getMyIngredients(mil, dbIngredients);
+                case None => getMyIngredients(mil, dbIngredients);
+            }
+        }
     };
 
-    def removeIngredient(myIngredients: List[Ingredient]): List[Ingredient] = {
-        def removeAtIndex(myIngredients: List[Ingredient], index: Int, acc: Int): List[Ingredient] =
+    def removeIngredient(myIngredients: List[String]): List[String] = {
+        def removeAtIndex(myIngredients: List[String], index: Int, acc: Int): List[String] =
             myIngredients match {
                 case Nil => Nil;
                 case ing :: ingredients => if(acc == index) removeAtIndex(ingredients, index, acc + 1) else ing :: removeAtIndex(ingredients, index, acc + 1);
             }
 
-        showMyIngredients(myIngredients);
-        val ingredientToRemove = askForStringInput("Enter ingredient number: ").toInt;
-        removeAtIndex(myIngredients, ingredientToRemove, 1);
+        removeAtIndex(myIngredients, MenuManager.showOptions(myIngredients), 1);
     }
 
     def mainLoop(myIngredients: List[Ingredient]): Any = {
@@ -75,11 +87,6 @@ object IngredientsManager {
 
         i match {
             case 0 => sys.exit();
-            case 1 => mainLoop(addIngredient(myIngredients));
-            case 2 => mainLoop(removeIngredient(myIngredients));
-            case 3 => {
-                showMyIngredients(myIngredients); mainLoop(myIngredients);
-            }
             case _ => println("Error: Please provide a valid input!");
         }
     }

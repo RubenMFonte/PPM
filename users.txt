@@ -1,3 +1,5 @@
+teste1;teste1;Teste 1
+pedrofonte;password;Pero
 brunofonte;ppmapp;Bruno
 miguelfonte;password;Miguel
 rubenfonte;ppmapp;Ruben
